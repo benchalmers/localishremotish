@@ -19,7 +19,7 @@ npm install
 npm run localish
 ```
 
-By default, localish listens only on `127.0.0.1:8080`. Keep this process running. The browser UI and file service are local-only; the remote host reaches the service through the SSH reverse socket.
+By default, localish listens only on `127.0.0.1:8080`. You can keep `npm run localish` open, or let `scripts/ssh-forward.ps1` start localish hidden in the background when it is not already healthy. Background logs are written under `%LOCALAPPDATA%\localish` (or `%TEMP%\localish` if `%LOCALAPPDATA%` is unavailable). The browser UI and file service are local-only; the remote host reaches the service through the SSH reverse socket.
 
 ## Connect the remote shell
 

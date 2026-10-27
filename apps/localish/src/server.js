@@ -114,6 +114,11 @@ export function createLocalishServer({
     const pathname = url.pathname;
 
     try {
+      if (method === 'GET' && pathname === '/healthz') {
+        sendJson(response, 200, { status: 'ok', service: 'localish' });
+        return;
+      }
+
       if (method === 'GET' && (pathname === '/' || /^\/explore\/[a-f0-9]{48}$/u.test(pathname))) {
         const html = await readFile(path.join(PUBLIC_DIRECTORY, 'index.html'));
         response.writeHead(200, {

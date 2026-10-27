@@ -46,7 +46,7 @@ By default localish listens on `127.0.0.1:8080`, not on a public interface. `scr
 
 OpenSSH creates the Unix-domain socket on the **remote** host. `LOCALISH_REMOTE_SOCKET` points remoteish at that socket. When remoteish connects to it, SSH carries the connection back to the Windows SSH client, which connects to localish's loopback HTTP listener. Thus remoteish initiates requests; localish does not need to open a connection to the remote host, and no separate remote TCP port is exposed.
 
-The PowerShell helper generates a unique socket path, exports it in the remote login shell, and keeps the SSH session attached to that shell. If the remote process receives `EACCES` opening the socket, remoteish attempts one `sudo chown` of the socket to its own UID/GID and retries. This may prompt for the remote account's password.
+The PowerShell helper first checks localish's `/healthz` endpoint. If it is not healthy, the helper starts the Node.js server hidden in the background and waits up to 30 seconds for it to become ready; stdout/stderr are written under `%LOCALAPPDATA%\localish` (or `%TEMP%\localish`). It then generates a unique socket path, exports it in the remote login shell, and keeps the SSH session attached to that shell. If the remote process receives `EACCES` opening the socket, remoteish attempts one `sudo chown` of the socket to its own UID/GID and retries. This may prompt for the remote account's password.
 
 ## `remoteish browser <url>` flow
 

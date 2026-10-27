@@ -43,6 +43,8 @@ test('localish opens browser sessions and relays browser filesystem calls to rem
   await app.listen();
   const address = app.server.address();
   const baseUrl = `http://127.0.0.1:${address.port}`;
+  const health = await fetch(`${baseUrl}/healthz`).then((response) => response.json());
+  assert.deepEqual(health, { status: 'ok', service: 'localish' });
   let streamController;
   t.after(async () => {
     streamController?.abort();
