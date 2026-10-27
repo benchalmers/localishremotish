@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { StringDecoder } from 'node:string_decoder';
 
@@ -22,15 +23,59 @@ function getSocketPath() {
   return socketPath;
 }
 
-export function requestLocalish({
-  method = 'GET',
-  path,
-  body,
-  signal,
-  timeoutMs = 15_000,
-  maxResponseBytes = SMALL_RESPONSE_LIMIT,
-} = {}) {
+const chownAttemptedFor = new Set();
+
+function canFixSocketOwnership() {
+  return (
+    process.platform !== 'win32' &&
+    typeof process.getuid === 'function' &&
+    typeof process.getgid === 'function'
+  );
+}
+
+function isSocketPermissionError(error) {
+  return error?.code === 'EACCES' && canFixSocketOwnership();
+}
+
+function chownSocketWithSudo(socketPath) {
+  const owner = `${process.getuid()}:${process.getgid()}`;
+  return new Promise((resolve, reject) => {
+    const child = spawn('sudo', ['chown', owner, socketPath], { stdio: 'inherit' });
+    child.on('error', (error) => {
+      reject(new LocalishRequestError(`sudo chown could not be started: ${error.message}`, 502));
+    });
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new LocalishRequestError(`sudo chown ${owner} ${socketPath} exited with code ${code}.`, 502));
+    });
+  });
+}
+
+async function withSocketAccessRetry(socketPath, operation) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isSocketPermissionError(error) || chownAttemptedFor.has(socketPath)) throw error;
+    chownAttemptedFor.add(socketPath);
+    console.error(`Permission denied for ${socketPath}; attempting to take ownership with sudo.`);
+    try {
+      await chownSocketWithSudo(socketPath);
+    } catch (chownError) {
+      throw new LocalishRequestError(`Permission denied for ${socketPath}. ${chownError.message}`, 502);
+    }
+    return operation();
+  }
+}
+
+export function requestLocalish(options = {}) {
   const socketPath = getSocketPath();
+  return withSocketAccessRetry(socketPath, () => sendLocalishRequest(socketPath, options));
+}
+
+function sendLocalishRequest(
+  socketPath,
+  { method = 'GET', path, body, signal, timeoutMs = 15_000, maxResponseBytes = SMALL_RESPONSE_LIMIT } = {},
+) {
   const bodyBuffer = body === undefined ? null : Buffer.from(JSON.stringify(body));
   const headers = bodyBuffer
     ? { 'content-type': 'application/json; charset=utf-8', 'content-length': bodyBuffer.byteLength }
@@ -98,7 +143,10 @@ export function requestLocalish({
 export function subscribeToLocalishEvents(sessionId, onTask, signal) {
   const socketPath = getSocketPath();
   const eventPath = `/internal/sessions/${encodeURIComponent(sessionId)}/events`;
+  return withSocketAccessRetry(socketPath, () => openLocalishEventStream(socketPath, eventPath, onTask, signal));
+}
 
+function openLocalishEventStream(socketPath, eventPath, onTask, signal) {
   return new Promise((resolve, reject) => {
     let completed = false;
     let abortHandler;

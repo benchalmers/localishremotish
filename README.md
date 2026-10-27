@@ -50,6 +50,8 @@ To run `remoteish` from arbitrary remote directories, install its command once w
 - `LOCALISH_HOST` / `LOCALISH_PORT`: localish bind address and port. If changed, pass the same host/port to `scripts/ssh-forward.ps1`.
 - `LOCALISH_REMOTE_SOCKET`: set automatically in the forwarded remote shell by the PowerShell helper. It can also be set manually to the remote Unix socket path.
 
+If remoteish cannot access the forwarded socket because of file permissions (for example, when the socket ends up owned by another user), it runs `sudo chown <uid>:<gid> <socket>` once and retries. `sudo` may prompt for the remote account's password; if the chown fails, the original permission error is reported.
+
 The explorer refuses parent traversal and does not expose symlinks or special files. File previews are limited to 2 MiB; upload/download transfers are limited to 20 MiB. Session URLs use random capabilities and localish binds to loopback by default. Treat the remote account and local desktop user as trusted; the reverse socket grants access to localish while the SSH session is active.
 
 ## Development
