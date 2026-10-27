@@ -32,6 +32,18 @@
             </div>
             <button id="up-button" class="button button-quiet" type="button" hidden disabled>↑ Up</button>
           </div>
+          <form id="search-form" class="search-form" role="search">
+            <label class="search-label" for="search-input">Search remote root</label>
+            <div class="search-controls">
+              <input id="search-input" class="search-input" type="search" maxlength="200" placeholder="File name or text…" autocomplete="off" disabled>
+              <button id="search-button" class="button button-primary" type="submit" disabled>Search</button>
+              <button id="clear-search-button" class="button button-secondary" type="button" disabled>Clear</button>
+            </div>
+            <div class="search-options">
+              <label class="case-toggle"><input id="case-sensitive" type="checkbox" disabled> Match case</label>
+              <p>Searches names and supported text contents recursively from the remote root; honors <code>.gitignore</code>. Case-insensitive by default.</p>
+            </div>
+          </form>
           <div id="file-list" class="file-list" aria-live="polite">
             <p class="placeholder">Waiting for a remote session…</p>
           </div>

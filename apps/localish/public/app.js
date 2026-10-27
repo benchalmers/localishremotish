@@ -7,6 +7,11 @@ const elements = {
   breadcrumbs: document.querySelector('#breadcrumbs'),
   refresh: document.querySelector('#refresh-button'),
   up: document.querySelector('#up-button'),
+  searchForm: document.querySelector('#search-form'),
+  searchInput: document.querySelector('#search-input'),
+  searchButton: document.querySelector('#search-button'),
+  clearSearch: document.querySelector('#clear-search-button'),
+  caseSensitive: document.querySelector('#case-sensitive'),
   list: document.querySelector('#file-list'),
   dropZone: document.querySelector('#drop-zone'),
   chooseFiles: document.querySelector('#choose-files-button'),
@@ -17,7 +22,8 @@ const elements = {
   closeViewer: document.querySelector('#close-viewer-button'),
 };
 
-const state = { path: '', entries: [], remoteRoot: '' };
+const state = { path: '', entries: [], remoteRoot: '', search: null };
+let searchGeneration = 0;
 
 function setStatus(message, kind = 'info') {
   elements.status.textContent = message;
@@ -72,6 +78,10 @@ function renderBreadcrumbs() {
 }
 
 function renderEntries() {
+  if (state.search) {
+    renderSearchResults();
+    return;
+  }
   elements.list.replaceChildren();
   if (state.entries.length === 0) {
     const empty = document.createElement('p');
@@ -122,8 +132,115 @@ function renderEntries() {
   }
 }
 
+function renderSearchResults() {
+  elements.list.replaceChildren();
+  if (state.search.results.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'placeholder';
+    empty.textContent = `No matches found for “${state.search.query}”.`;
+    elements.list.append(empty);
+    return;
+  }
+
+  for (const result of state.search.results) {
+    const row = document.createElement('div');
+    row.className = 'file-row search-result-row';
+    const main = document.createElement('div');
+    main.className = 'file-main';
+    const icon = document.createElement('span');
+    icon.className = 'file-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = result.type === 'directory' ? '▰' : '▤';
+
+    const detail = document.createElement('div');
+    detail.className = 'file-detail';
+    const name = document.createElement('div');
+    name.className = 'file-name';
+    name.textContent = result.path;
+    detail.append(name);
+
+    if (result.nameMatch) {
+      const nameMatch = document.createElement('div');
+      nameMatch.className = 'search-match-label';
+      nameMatch.textContent = 'File name match';
+      detail.append(nameMatch);
+    }
+    for (const match of result.matches) {
+      const matchRow = document.createElement('div');
+      matchRow.className = 'search-match';
+      const line = document.createElement('span');
+      line.className = 'search-line-number';
+      line.textContent = `Line ${match.lineNumber}`;
+      const snippet = document.createElement('span');
+      snippet.className = 'search-snippet';
+      snippet.textContent = match.snippet;
+      matchRow.append(line, snippet);
+      detail.append(matchRow);
+    }
+    main.append(icon, detail);
+
+    const actions = document.createElement('div');
+    actions.className = 'file-actions';
+    if (result.type === 'directory') {
+      actions.append(makeButton('Open folder', 'file-action', () => navigate(result.path)));
+    } else {
+      if (result.canOpen) {
+        actions.append(makeButton('Open', 'file-action', () => openTextFile(result.path)));
+      }
+      actions.append(makeButton('Download', 'file-action', () => downloadFile(result.path, result.name)));
+    }
+    row.append(main, actions);
+    elements.list.append(row);
+  }
+}
+
 function joinPath(directory, name) {
   return directory ? `${directory}/${name}` : name;
+}
+
+async function clearSearch() {
+  searchGeneration += 1;
+  state.search = null;
+  elements.searchInput.value = '';
+  elements.searchButton.disabled = !apiRoot;
+  await loadDirectory();
+}
+
+async function runSearch(event) {
+  event?.preventDefault();
+  if (!apiRoot) return;
+  const query = elements.searchInput.value.trim();
+  if (!query) {
+    await clearSearch();
+    setStatus('Enter a name or text fragment to search.', 'error');
+    elements.searchInput.focus();
+    return;
+  }
+
+  const generation = ++searchGeneration;
+  const caseSensitive = elements.caseSensitive.checked;
+  elements.searchButton.disabled = true;
+  elements.viewer.hidden = true;
+  setStatus(`Searching recursively for “${query}”…`);
+  try {
+    const searchQuery = `?q=${encodeURIComponent(query)}&caseSensitive=${caseSensitive}`;
+    const result = await expectJson(await fetch(apiUrl('search', searchQuery)));
+    if (generation !== searchGeneration) return;
+    state.search = result;
+    renderEntries();
+
+    const matchCount = result.results.length;
+    const summary = [`${matchCount} matching item${matchCount === 1 ? '' : 's'} for “${result.query}”`];
+    summary.push(result.caseSensitive ? 'case-sensitive' : 'case-insensitive');
+    if (result.truncated) summary.push('results are partial; narrow your search');
+    if (result.largeFilesSkipped) summary.push(`${result.largeFilesSkipped} large text file(s) skipped`);
+    if (result.binaryFilesSkipped) summary.push(`${result.binaryFilesSkipped} binary file(s) skipped`);
+    setStatus(`${summary.join(' · ')}.`, matchCount ? 'success' : 'info');
+  } catch (error) {
+    if (generation === searchGeneration) setStatus(error.message, 'error');
+  } finally {
+    if (generation === searchGeneration) elements.searchButton.disabled = false;
+  }
 }
 
 async function loadDirectory() {
@@ -142,6 +259,10 @@ async function loadDirectory() {
 }
 
 async function navigate(path) {
+  searchGeneration += 1;
+  state.search = null;
+  elements.searchInput.value = '';
+  elements.searchButton.disabled = !apiRoot;
   state.path = path;
   elements.viewer.hidden = true;
   await loadDirectory();
@@ -216,7 +337,8 @@ async function uploadFile(file) {
     });
     await expectJson(response);
     setStatus(`Uploaded ${file.name}.`, 'success');
-    await loadDirectory();
+    if (state.search) await runSearch();
+    else await loadDirectory();
   } catch (error) {
     setStatus(error.message, 'error');
   }
@@ -224,6 +346,10 @@ async function uploadFile(file) {
 
 function setSessionControls(enabled) {
   elements.refresh.disabled = !enabled;
+  elements.searchInput.disabled = !enabled;
+  elements.searchButton.disabled = !enabled;
+  elements.clearSearch.disabled = !enabled;
+  elements.caseSensitive.disabled = !enabled;
   elements.chooseFiles.disabled = !enabled;
   elements.fileInput.disabled = !enabled;
 }
@@ -234,7 +360,9 @@ if (!sessionId) {
   setStatus('Start `remoteish explore` in the remote directory you want to browse.');
 } else {
   setSessionControls(true);
-  elements.refresh.addEventListener('click', loadDirectory);
+  elements.refresh.addEventListener('click', () => state.search ? runSearch() : loadDirectory());
+  elements.searchForm.addEventListener('submit', runSearch);
+  elements.clearSearch.addEventListener('click', () => clearSearch());
   elements.up.addEventListener('click', () => {
     const segments = state.path.split('/').filter(Boolean);
     segments.pop();

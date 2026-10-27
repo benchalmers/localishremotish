@@ -205,6 +205,17 @@ export function createLocalishServer({
         return;
       }
 
+      const searchSession = method === 'GET' ? sessionRoute(pathname, 'search') : null;
+      if (searchSession) {
+        const result = await sessions.enqueue(searchSession, {
+          op: 'search',
+          query: url.searchParams.get('q') ?? '',
+          caseSensitive: url.searchParams.get('caseSensitive') === 'true',
+        });
+        sendJson(response, 200, result);
+        return;
+      }
+
       const readSession = method === 'GET' ? sessionRoute(pathname, 'read') : null;
       if (readSession) {
         const result = await sessions.enqueue(readSession, { op: 'read', path: url.searchParams.get('path') ?? '' });

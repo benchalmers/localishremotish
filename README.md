@@ -8,7 +8,7 @@ A small Node.js monorepo for opening remote Linux URLs on a local Windows deskto
 - OpenSSH on the Windows desktop and an SSH account on the remote Linux host
 - The remote SSH server must permit remote stream-local (Unix-domain socket) forwarding
 
-The only runtime dependencies are `markdown-it` and `sanitize-html`, used for attractive and safely sanitized Markdown previews.
+Runtime dependencies are `markdown-it` and `sanitize-html` for safe Markdown rendering, and `ignore` for `.gitignore`-compatible recursive search.
 
 ## Start localish on Windows
 
@@ -41,7 +41,7 @@ npm run remoteish -- browser https://example.com
 npm run remoteish -- explore
 ```
 
-`browser` opens the supplied HTTP(S) URL on the Windows desktop. `explore` opens the remote shell's **current working directory** in the desktop browser and keeps a small event stream open while you browse. When invoked via `npm run remoteish` from the monorepo root, that root is the directory being explored. Use Ctrl+C to close the session. Within the page you can navigate into subdirectories and back up to the selected root, preview common text/source/config files and formatted Markdown, download files, and drag files onto the upload area (20 MiB per transfer). Uploading a name that already exists asks before replacing it.
+`browser` opens the supplied HTTP(S) URL on the Windows desktop. `explore` opens the remote shell's **current working directory** in the desktop browser and keeps a small event stream open while you browse. When invoked via `npm run remoteish` from the monorepo root, that root is the directory being explored. Use Ctrl+C to close the session. Within the page you can navigate into subdirectories and back up to the selected root, recursively search file names and supported text contents (case-insensitive by default, with a case-sensitive option, honoring nested `.gitignore` files), preview common text/source/config files and formatted Markdown, download files, and drag files onto the upload area (20 MiB per transfer). Uploading a name that already exists asks before replacing it.
 
 To run `remoteish` from arbitrary remote directories, install its command once with `npm link` from `apps/remoteish`, then `cd` to the directory you want and run `remoteish explore`. No separate remote port needs to be exposed.
 

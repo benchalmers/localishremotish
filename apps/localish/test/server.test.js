@@ -96,6 +96,24 @@ test('localish opens browser sessions and relays browser filesystem calls to rem
   assert.match(markdown.markdownHtml, /<strong>Formatted<\/strong>/u);
   assert.doesNotMatch(markdown.markdownHtml, /<script\b/u);
 
+  const searchPromise = fetch(`${baseUrl}/api/explore/${session.sessionId}/search?q=needle&caseSensitive=false`);
+  const searchTask = await nextSseEvent(reader, sseState);
+  assert.deepEqual(searchTask.operation, { op: 'search', query: 'needle', caseSensitive: false });
+  await reply(baseUrl, session.sessionId, searchTask, {
+    query: 'needle',
+    caseSensitive: false,
+    results: [{ path: 'src/guide.md', name: 'guide.md', type: 'file', matches: [{ lineNumber: 3, snippet: 'A needle in context' }] }],
+    filesScanned: 10,
+    textFilesScanned: 4,
+    largeFilesSkipped: 0,
+    binaryFilesSkipped: 0,
+    bytesScanned: 128,
+    truncated: false,
+  });
+  const searchResponse = await searchPromise;
+  assert.equal(searchResponse.status, 200);
+  assert.equal((await searchResponse.json()).results[0].matches[0].lineNumber, 3);
+
   const uploadBytes = Buffer.from([0, 3, 128, 255]);
   const uploadPromise = fetch(`${baseUrl}/api/explore/${session.sessionId}/upload?path=src&name=asset.bin`, {
     method: 'POST',

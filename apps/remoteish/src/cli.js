@@ -44,6 +44,9 @@ async function handleRemoteTask(sessionId, fileSystem, task) {
       case 'read':
         result = await fileSystem.readText(path);
         break;
+      case 'search':
+        result = await fileSystem.search(task.operation.query, task.operation.caseSensitive === true);
+        break;
       case 'download':
         result = await fileSystem.download(path);
         break;

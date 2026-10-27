@@ -1,9 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import ignore from 'ignore';
 import path from 'node:path';
 
 export const MAX_TRANSFER_BYTES = 20 * 1024 * 1024;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+export const MAX_SEARCH_QUERY_LENGTH = 200;
+
+const MAX_SEARCH_FILES = 20_000;
+const MAX_SEARCH_DIRECTORIES = 50_000;
+const MAX_SEARCH_DEPTH = 100;
+const MAX_SEARCH_RESULTS = 200;
+const MAX_SEARCH_FILE_BYTES = MAX_TEXT_BYTES;
+const MAX_SEARCH_TOTAL_BYTES = 100 * 1024 * 1024;
+const MAX_IGNORE_FILE_BYTES = 1024 * 1024;
+const MAX_SEARCH_MATCHES_PER_FILE = 3;
+const MAX_SEARCH_SNIPPET_LENGTH = 280;
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.md', '.markdown', '.mdown', '.mkd', '.log', '.json', '.jsonc', '.csv',
@@ -86,6 +98,77 @@ function mimeTypeFor(filename) {
 
 function isTextFilename(filename) {
   return TEXT_EXTENSIONS.has(path.extname(filename).toLowerCase()) || TEXT_FILENAMES.has(path.basename(filename).toLowerCase());
+}
+
+function relativeToIgnoreScope(scopeBase, targetPath) {
+  if (scopeBase === '') return targetPath;
+  if (targetPath === scopeBase) return '';
+  return targetPath.startsWith(`${scopeBase}/`) ? targetPath.slice(scopeBase.length + 1) : null;
+}
+
+function isGitIgnored(relativePath, isDirectory, scopes) {
+  for (let index = scopes.length - 1; index >= 0; index -= 1) {
+    const scope = scopes[index];
+    const scopedPath = relativeToIgnoreScope(scope.base, relativePath);
+    if (scopedPath === null || scopedPath === '') continue;
+    const target = isDirectory ? `${scopedPath}/` : scopedPath;
+    const result = scope.matcher.checkIgnore(target);
+    if (result.ignored) return true;
+    if (result.unignored) return false;
+  }
+  return false;
+}
+
+function findLineMatches(content, query, caseSensitive) {
+  const matches = [];
+  const needle = caseSensitive ? query : query.toLowerCase();
+  const lines = content.split(/\r\n?|\n/u);
+
+  for (let index = 0; index < lines.length && matches.length < MAX_SEARCH_MATCHES_PER_FILE; index += 1) {
+    const line = lines[index];
+    const searchableLine = caseSensitive ? line : line.toLowerCase();
+    const matchAt = searchableLine.indexOf(needle);
+    if (matchAt === -1) continue;
+
+    const availableContext = Math.max(0, MAX_SEARCH_SNIPPET_LENGTH - query.length);
+    const start = Math.max(0, matchAt - Math.floor(availableContext / 2));
+    const end = Math.min(line.length, start + MAX_SEARCH_SNIPPET_LENGTH);
+    matches.push({
+      lineNumber: index + 1,
+      snippet: `${start > 0 ? '…' : ''}${line.slice(start, end)}${end < line.length ? '…' : ''}`,
+    });
+  }
+
+  return matches;
+}
+
+async function readIgnoreScope(directory, base) {
+  const filename = path.join(directory, '.gitignore');
+  let stat;
+  try {
+    stat = await fs.lstat(filename);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) return null;
+  if (stat.size > MAX_IGNORE_FILE_BYTES) {
+    throw new FileOperationError(413, `The .gitignore at ${base || '.'} is too large to process safely.`);
+  }
+
+  let text;
+  try {
+    text = await fs.readFile(filename, 'utf8');
+  } catch (error) {
+    throw mapFsError(error);
+  }
+
+  try {
+    const matcher = ignore().add(text.split(/\r\n?|\n/u));
+    return { base, matcher };
+  } catch {
+    throw new FileOperationError(400, `Could not parse the .gitignore at ${base || '.'}.`);
+  }
 }
 
 async function replaceExistingFile(temporaryPath, target, directory) {
@@ -228,6 +311,151 @@ export class RemoteFileSystem {
         return left.name.localeCompare(right.name);
       });
       return { path: relativePath, entries: entries.filter(Boolean) };
+    } catch (error) {
+      throw mapFsError(error);
+    }
+  }
+
+  async search(query, caseSensitive = false) {
+    if (typeof query !== 'string' || typeof caseSensitive !== 'boolean') {
+      throw new FileOperationError(400, 'A search query and valid case-sensitivity option are required.');
+    }
+    const normalizedQuery = query.trim();
+    if (
+      !normalizedQuery ||
+      normalizedQuery.length > MAX_SEARCH_QUERY_LENGTH ||
+      normalizedQuery.split('').some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+    ) {
+      throw new FileOperationError(400, `Search must contain 1–${MAX_SEARCH_QUERY_LENGTH} printable characters.`);
+    }
+
+    const needle = caseSensitive ? normalizedQuery : normalizedQuery.toLowerCase();
+    const state = {
+      results: [],
+      filesScanned: 0,
+      directoriesScanned: 0,
+      textFilesScanned: 0,
+      largeFilesSkipped: 0,
+      binaryFilesSkipped: 0,
+      bytesScanned: 0,
+      truncated: false,
+    };
+    const matchesName = (name) => (caseSensitive ? name : name.toLowerCase()).includes(needle);
+
+    const addResult = (result) => {
+      state.results.push(result);
+      if (state.results.length >= MAX_SEARCH_RESULTS) state.truncated = true;
+    };
+
+    const walk = async (directory, relativeDirectory, inheritedScopes, depth = 0) => {
+      if (state.truncated) return;
+      if (depth > MAX_SEARCH_DEPTH || state.directoriesScanned >= MAX_SEARCH_DIRECTORIES) {
+        state.truncated = true;
+        return;
+      }
+      state.directoriesScanned += 1;
+      const directoryIgnore = await readIgnoreScope(directory, relativeDirectory);
+      const scopes = directoryIgnore ? [...inheritedScopes, directoryIgnore] : inheritedScopes;
+      const children = await fs.readdir(directory, { withFileTypes: true });
+
+      for (const child of children) {
+        if (state.truncated) return;
+        if (
+          child.name === '.git' ||
+          child.name.includes('\\') ||
+          child.name.startsWith('.localish-upload-') ||
+          child.name.startsWith('.localish-backup-')
+        ) continue;
+
+        const childPath = relativeDirectory ? `${relativeDirectory}/${child.name}` : child.name;
+        const absoluteChild = path.join(directory, child.name);
+        let stat;
+        try {
+          stat = await fs.lstat(absoluteChild);
+        } catch (error) {
+          if (error?.code === 'ENOENT') continue;
+          throw error;
+        }
+        if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) continue;
+
+        const isDirectory = stat.isDirectory();
+        if (isGitIgnored(childPath, isDirectory, scopes)) continue;
+        const nameMatch = matchesName(child.name);
+
+        if (isDirectory) {
+          if (nameMatch) {
+            addResult({
+              path: childPath,
+              name: child.name,
+              type: 'directory',
+              size: null,
+              modifiedAt: stat.mtime.toISOString(),
+              canOpen: false,
+              nameMatch: true,
+              matches: [],
+            });
+          }
+          if (!state.truncated) await walk(absoluteChild, childPath, scopes, depth + 1);
+          continue;
+        }
+
+        if (state.filesScanned >= MAX_SEARCH_FILES) {
+          state.truncated = true;
+          return;
+        }
+        state.filesScanned += 1;
+
+        let lineMatches = [];
+        if (isTextFilename(child.name)) {
+          if (stat.size > MAX_SEARCH_FILE_BYTES) {
+            state.largeFilesSkipped += 1;
+          } else if (state.bytesScanned + stat.size > MAX_SEARCH_TOTAL_BYTES) {
+            state.truncated = true;
+            return;
+          } else {
+            let content;
+            try {
+              content = await fs.readFile(absoluteChild);
+            } catch (error) {
+              if (error?.code === 'ENOENT') continue;
+              throw error;
+            }
+            if (content.byteLength > MAX_SEARCH_FILE_BYTES) {
+              state.largeFilesSkipped += 1;
+            } else if (state.bytesScanned + content.byteLength > MAX_SEARCH_TOTAL_BYTES) {
+              state.truncated = true;
+              return;
+            } else {
+              state.bytesScanned += content.byteLength;
+              if (content.includes(0)) {
+                state.binaryFilesSkipped += 1;
+              } else {
+                state.textFilesScanned += 1;
+                lineMatches = findLineMatches(content.toString('utf8'), normalizedQuery, caseSensitive);
+              }
+            }
+          }
+        }
+
+        if (nameMatch || lineMatches.length > 0) {
+          addResult({
+            path: childPath,
+            name: child.name,
+            type: 'file',
+            size: stat.size,
+            modifiedAt: stat.mtime.toISOString(),
+            canOpen: stat.size <= MAX_TEXT_BYTES && isTextFilename(child.name),
+            nameMatch,
+            matches: lineMatches,
+          });
+        }
+      }
+    };
+
+    try {
+      await walk(this.#root, '', []);
+      state.results.sort((left, right) => left.path.localeCompare(right.path));
+      return { query: normalizedQuery, caseSensitive, ...state };
     } catch (error) {
       throw mapFsError(error);
     }

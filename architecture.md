@@ -23,7 +23,7 @@ scripts/
 package.json             npm workspaces and root commands
 ```
 
-The root npm workspace keeps both applications installable and testable together. The applications communicate through HTTP over the forwarded socket; they do not import each other's code. The localish workspace uses `markdown-it` and `sanitize-html` to render safe Markdown previews.
+The root npm workspace keeps both applications installable and testable together. The applications communicate through HTTP over the forwarded socket; they do not import each other's code. Localish uses `markdown-it` and `sanitize-html` to render safe Markdown previews, while remoteish uses `ignore` to apply `.gitignore` rules during search.
 
 ## Machine and connection topology
 
@@ -85,7 +85,7 @@ For each browser file request, localish:
 3. waits for a response posted to `/internal/sessions/<id>/responses` with that request ID; and
 4. maps the result or error back to the waiting browser HTTP request.
 
-Remoteish consumes SSE events, runs the requested operation, and posts the correlated response through the same SSH socket. Supported operations are `list`, `read`, `download`, and `upload`. Pending requests are re-sent if the event stream disconnects; individual RPCs time out after two minutes. SSE heartbeat comments keep an otherwise idle SSH connection alive. The session is closed when the CLI exits normally and expires after prolonged inactivity.
+Remoteish consumes SSE events, runs the requested operation, and posts the correlated response through the same SSH socket. Supported operations are `list`, `read`, `search`, `download`, and `upload`. Pending requests are re-sent if the event stream disconnects; individual RPCs time out after two minutes. SSE heartbeat comments keep an otherwise idle SSH connection alive. The session is closed when the CLI exits normally and expires after prolonged inactivity.
 
 ### File operations and transfer format
 
@@ -93,6 +93,7 @@ Remoteish consumes SSE events, runs the requested operation, and posts the corre
 
 - **List:** remoteish returns directory/file metadata and whether a file can be previewed.
 - **Read:** remoteish returns UTF-8 text for supported text/source/config and Markdown files. Previews are capped at 2 MiB.
+- **Search:** remoteish walks the captured root recursively, matching file and directory names plus contents of supported text files. Search is case-insensitive by default; the UI can request case-sensitive matching. Root and nested `.gitignore` rules are applied, including nested negation rules. `.git` metadata, symlinks, and special files are skipped.
 - **Upload:** the browser sends raw bytes to localish. Localish encodes them as base64 in the RPC event; remoteish validates the name and path, decodes the bytes, then writes a temporary file and atomically places it in the selected directory. Transfers are capped at 20 MiB. Existing files are not replaced unless the browser UI first confirms and explicitly requests overwrite.
 - **Download:** remoteish returns base64 data and metadata over the RPC response. Localish decodes it and streams the original bytes to the browser as an attachment. Downloads share the 20 MiB cap.
 
@@ -105,7 +106,7 @@ Markdown conversion happens on localish after it receives a remote text preview.
 - localish binds to loopback by default, and browser-facing API requests reject cross-site or unexpected-origin requests.
 - Explore URLs contain unguessable session capabilities. The reverse socket itself grants access to localish, so the SSH account and desktop user must be trusted.
 - Remote paths are confined to the root chosen by `remoteish explore`; parent traversal, symlinks, and special files are blocked.
-- File previews are limited to 2 MiB; uploads and downloads are limited to 20 MiB each.
+- File previews are limited to 2 MiB; uploads and downloads are limited to 20 MiB each. Searches read at most 2 MiB per text file and 100 MiB total, inspect at most 20,000 files and 50,000 directories (up to 100 levels deep), and return at most 200 results; the UI reports when results are partial or large/binary content was skipped.
 - URL opening is restricted to HTTP and HTTPS. Markdown raw HTML is disabled and the rendered output is sanitized.
 
 ## Runtime entry points

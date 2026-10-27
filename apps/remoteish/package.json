@@ -8,5 +8,8 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "ignore": "^7.0.14"
   }
 }
