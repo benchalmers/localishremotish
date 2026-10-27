@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openBrowser, validateBrowserUrl } from './browser.js';
+import { renderMarkdown } from './markdown.js';
 import { HttpError, SessionManager } from './session-manager.js';
 
 const MODULE_DIRECTORY = path.dirname(fileURLToPath(import.meta.url));
@@ -207,7 +208,11 @@ export function createLocalishServer({
       const readSession = method === 'GET' ? sessionRoute(pathname, 'read') : null;
       if (readSession) {
         const result = await sessions.enqueue(readSession, { op: 'read', path: url.searchParams.get('path') ?? '' });
-        sendJson(response, 200, result);
+        const isMarkdown = /\.(?:md|markdown|mdown|mkd)$/iu.test(result.name);
+        sendJson(response, 200, {
+          ...result,
+          ...(isMarkdown ? { markdownHtml: renderMarkdown(result.text) } : {}),
+        });
         return;
       }
 

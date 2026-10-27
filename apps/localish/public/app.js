@@ -152,9 +152,20 @@ async function openTextFile(path) {
   try {
     const result = await expectJson(await fetch(apiUrl('read', `?path=${encodeURIComponent(path)}`)));
     elements.viewerTitle.textContent = result.name;
-    elements.viewerContent.textContent = result.text;
+    elements.viewerContent.replaceChildren();
+    if (typeof result.markdownHtml === 'string') {
+      elements.viewerContent.classList.add('markdown-body');
+      elements.viewerContent.innerHTML = result.markdownHtml;
+      setStatus(`Opened ${path} as formatted Markdown.`, 'success');
+    } else {
+      elements.viewerContent.classList.remove('markdown-body');
+      const text = document.createElement('pre');
+      text.className = 'plain-text';
+      text.textContent = result.text;
+      elements.viewerContent.append(text);
+      setStatus(`Opened ${path}.`, 'success');
+    }
     elements.viewer.hidden = false;
-    setStatus(`Opened ${path}. Markdown is shown as source text.`, 'success');
   } catch (error) {
     setStatus(error.message, 'error');
   }

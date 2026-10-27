@@ -110,7 +110,32 @@ h2 { margin-bottom: 0; font-size: 19px; letter-spacing: -.035em; }
 
 .viewer-panel { overflow: hidden; }
 .viewer-heading { padding: 18px 20px 14px; }
-.viewer-content { max-height: 65vh; overflow: auto; margin: 0; border-top: 1px solid var(--line); padding: 18px 20px; color: #24352b; background: #fbfcfa; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 'DM Mono', Consolas, monospace; }
+.viewer-content { max-height: 65vh; overflow: auto; margin: 0; border-top: 1px solid var(--line); padding: 20px; color: #24352b; background: #fbfcfa; }
+.viewer-content .plain-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.7 'DM Mono', Consolas, monospace; }
+.markdown-body { color: #293a30; font-size: 13px; line-height: 1.75; overflow-wrap: anywhere; }
+.markdown-body > :first-child { margin-top: 0; }
+.markdown-body > :last-child { margin-bottom: 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4, .markdown-body h5, .markdown-body h6 { margin: 1.35em 0 .55em; color: #1b2c22; font-weight: 800; line-height: 1.25; letter-spacing: -.035em; }
+.markdown-body h1 { border-bottom: 1px solid #dce6dd; padding-bottom: .35em; font-size: 1.75em; }
+.markdown-body h2 { border-bottom: 1px solid #e5ebe6; padding-bottom: .3em; font-size: 1.4em; }
+.markdown-body h3 { font-size: 1.18em; }
+.markdown-body h4, .markdown-body h5, .markdown-body h6 { font-size: 1em; }
+.markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body blockquote, .markdown-body pre, .markdown-body table { margin: 0 0 1.05em; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.6em; }
+.markdown-body li + li { margin-top: .25em; }
+.markdown-body a { color: #176b45; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.markdown-body a:hover { color: #104c31; }
+.markdown-body code { border: 1px solid #e1e9e2; border-radius: 5px; padding: .12em .38em; color: #315b42; background: #eef4ef; font: .9em 'DM Mono', Consolas, monospace; }
+.markdown-body pre { overflow: auto; border: 1px solid #263b2e; border-radius: 10px; padding: 15px 17px; color: #e5f0e8; background: #1d2c24; }
+.markdown-body pre code { border: 0; padding: 0; color: inherit; background: transparent; font-size: 11px; line-height: 1.7; }
+.markdown-body blockquote { border-left: 3px solid #75a386; border-radius: 0 8px 8px 0; padding: 10px 15px; color: #56695d; background: #f1f6f1; }
+.markdown-body blockquote > :last-child { margin-bottom: 0; }
+.markdown-body table { display: block; width: max-content; max-width: 100%; overflow: auto; border-collapse: collapse; font-size: 12px; }
+.markdown-body th, .markdown-body td { border: 1px solid #dfe7e0; padding: 7px 10px; text-align: left; }
+.markdown-body th { color: #344c3c; background: #eef4ef; font-weight: 700; }
+.markdown-body tr:nth-child(even) td { background: #f7faf7; }
+.markdown-body hr { height: 1px; margin: 1.5em 0; border: 0; background: #dfe7e0; }
+.markdown-image-placeholder { display: inline-block; border: 1px dashed #c2d2c5; border-radius: 6px; padding: 2px 8px; color: #6d7e72; background: #f6f9f6; font-size: .9em; }
 .page-footer { margin-top: 20px; color: #9aa59d; font-size: 10px; line-height: 1.6; text-align: center; }
 
 [hidden] { display: none !important; }

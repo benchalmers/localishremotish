@@ -82,6 +82,20 @@ test('localish opens browser sessions and relays browser filesystem calls to rem
   assert.equal(listingResponse.status, 200);
   assert.equal((await listingResponse.json()).entries[0].name, 'main.js');
 
+  const markdownPromise = fetch(`${baseUrl}/api/explore/${session.sessionId}/read?path=README.md`);
+  const markdownTask = await nextSseEvent(reader, sseState);
+  assert.deepEqual(markdownTask.operation, { op: 'read', path: 'README.md' });
+  await reply(baseUrl, session.sessionId, markdownTask, {
+    name: 'README.md',
+    text: '# Hello\n\n**Formatted** Markdown.\n\n<script>alert(1)</script>',
+  });
+  const markdownResponse = await markdownPromise;
+  assert.equal(markdownResponse.status, 200);
+  const markdown = await markdownResponse.json();
+  assert.match(markdown.markdownHtml, /<h1>Hello<\/h1>/u);
+  assert.match(markdown.markdownHtml, /<strong>Formatted<\/strong>/u);
+  assert.doesNotMatch(markdown.markdownHtml, /<script\b/u);
+
   const uploadBytes = Buffer.from([0, 3, 128, 255]);
   const uploadPromise = fetch(`${baseUrl}/api/explore/${session.sessionId}/upload?path=src&name=asset.bin`, {
     method: 'POST',

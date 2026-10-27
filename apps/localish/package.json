@@ -10,6 +10,10 @@
     "start": "node src/cli.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "markdown-it": "^15.0.3",
+    "sanitize-html": "^2.18.1"
   }
 }

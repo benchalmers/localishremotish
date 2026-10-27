@@ -19,7 +19,8 @@ $remoteForward = "${remoteSocket}:${LocalishHost}:${LocalishPort}"
 $remoteCommand = 'export LOCALISH_REMOTE_SOCKET="{0}"; exec "$SHELL" -l' -f $remoteSocket
 
 Write-Host "Forwarding remote socket: $remoteSocket"
+Write-Host "Command: $remoteCommand"
 Write-Host "Starting SSH session to $Remote; keep localish running on port $LocalishPort."
 
-& ssh -t -o ExitOnForwardFailure=yes -R $remoteForward $Remote $remoteCommand
+& ssh -t -o ExitOnForwardFailure=yes -l bench -R $remoteForward $Remote $remoteCommand
 exit $LASTEXITCODE
