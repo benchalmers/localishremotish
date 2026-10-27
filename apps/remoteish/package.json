@@ -1,0 +1,12 @@
+{
+  "name": "@localish/remoteish",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "remoteish": "./src/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

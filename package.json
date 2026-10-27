@@ -1,0 +1,19 @@
+{
+  "name": "remoteish-localish",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Node.js monorepo for connecting a remote Linux shell to a local desktop browser and file explorer.",
+  "workspaces": [
+    "apps/localish",
+    "apps/remoteish"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "localish": "node apps/localish/src/cli.js",
+    "remoteish": "node apps/remoteish/src/cli.js",
+    "test": "node --test"
+  }
+}

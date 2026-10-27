@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Localish · Remote files</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">LOCALISH · REMOTE FILES</p>
+          <h1>Remote explorer</h1>
+          <p id="root-label" class="root-label">Waiting for a remote session</p>
+        </div>
+        <button id="refresh-button" class="button button-secondary" type="button" disabled>Refresh</button>
+      </header>
+
+      <div id="status" class="status" role="status" aria-live="polite">Start <code>remoteish explore</code> in the remote directory you want to browse.</div>
+
+      <nav id="breadcrumbs" class="breadcrumbs" aria-label="Remote directory" hidden></nav>
+
+      <div class="workspace">
+        <section class="panel files-panel" aria-labelledby="contents-heading">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">DIRECTORY</p>
+              <h2 id="contents-heading">Contents</h2>
+            </div>
+            <button id="up-button" class="button button-quiet" type="button" hidden disabled>↑ Up</button>
+          </div>
+          <div id="file-list" class="file-list" aria-live="polite">
+            <p class="placeholder">Waiting for a remote session…</p>
+          </div>
+          <div id="drop-zone" class="drop-zone" aria-label="Upload files by dragging them here">
+            <div class="drop-icon" aria-hidden="true">＋</div>
+            <div>
+              <strong>Drop files to upload</strong>
+              <p>Files are uploaded to the current directory · up to 20 MiB each</p>
+            </div>
+            <button id="choose-files-button" class="button button-secondary" type="button" disabled>Choose files</button>
+            <input id="file-input" type="file" multiple hidden>
+          </div>
+        </section>
+
+        <section id="viewer" class="panel viewer-panel" aria-labelledby="viewer-title" hidden>
+          <div class="panel-heading viewer-heading">
+            <div>
+              <p class="eyebrow">TEXT PREVIEW</p>
+              <h2 id="viewer-title">File</h2>
+            </div>
+            <button id="close-viewer-button" class="button button-quiet" type="button">Close</button>
+          </div>
+          <pre id="viewer-content" class="viewer-content"></pre>
+        </section>
+      </div>
+
+      <footer class="page-footer">The explorer is available only through this local desktop service and its SSH-forwarded remote session.</footer>
+    </main>
+  </body>
+</html>
